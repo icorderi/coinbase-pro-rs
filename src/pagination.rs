@@ -26,12 +26,43 @@ impl<U> Paginated<U> {
         U: Send + 'static, 
         for<'de> U: serde::Deserialize<'de>
     {
-       // TODO: the path might already include params, in which case we need to append the param, use a smarter lib for generating the uri 
-       // TODO: the path might already include de "after" param!
-       // TODO: return Option of this crap if the cb_after is done 
-       // default limit = 100
-       let uri = format!("{}?after={}", self.uri, self.cb_after.as_ref().unwrap());
-       conn.call_get_paginated(&uri)
+        // TODO: the path might already include params, in which case we need to append the param, use a smarter lib for generating the uri 
+        // TODO: the path might already include de "after" param!
+        // TODO: return Option of this crap if the cb_after is done 
+        // default limit = 100
+
+        // hack: uri does not seem to support parsing relative urls
+        let mut uri = url::Url::parse(&format!("http://hack.com{}", self.uri)).unwrap();
+
+        println!("Magical url looks like: {}", &uri);
+
+        let mut new_query = vec![];
+
+        // update or insert "after"
+        let mut updated = false;
+        for (name, value) in uri.query_pairs() {
+            if name == "after" {
+                new_query.push(("after".to_owned(),  format!("{}", self.cb_after.as_ref().unwrap())));
+                updated = true;
+            } else {
+                new_query.push((format!("{}",name), format!("{}",value)));
+            }
+        }
+        if !updated {
+            new_query.push(("after".to_owned(),  format!("{}", self.cb_after.as_ref().unwrap())));
+        }
+        {
+            let mut qp = uri.query_pairs_mut();
+            qp.clear();
+            for (name, value) in &new_query {
+                qp.append_pair(name, value);
+            }
+        }
+
+        // get back a relative url with the new query 
+        let fixed = format!("{}?{}", uri.path(), uri.query().unwrap());
+        println!("Fixed url: {}", &fixed);
+        conn.call_get_paginated(&fixed)
     }
 
     /// Returns the previous page of items.
