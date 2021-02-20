@@ -6,7 +6,7 @@ pub struct Paginated<U> {
     pub(crate) uri: String,
     pub(crate) cb_before: Option<String>,
     pub(crate) cb_after: Option<String>,
-    pub(crate) result: U
+    pub result: U
 }
 
 pub trait PaginationClient<A> {
