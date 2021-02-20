@@ -71,6 +71,7 @@ mod error;
 pub mod private;
 pub mod public;
 pub mod structs;
+pub mod pagination;
 mod utils;
 
 pub mod wsfeed;

@@ -12,6 +12,7 @@ use super::adapters::*;
 use crate::error::*;
 use crate::structs::public::*;
 use crate::structs::DateTime;
+use crate::pagination::Paginated;
 
 pub struct Public<Adapter> {
     pub(crate) uri: String,
@@ -65,6 +66,45 @@ impl<A> Public<A> {
         }
     }
 
+    
+    pub(crate) fn call_future_paginated<U>(
+        &self,
+        request: Request<Body>,
+    ) -> impl Future<Output = Result<Paginated<U>, CBError>> + 'static
+    where
+        for<'de> U: serde::Deserialize<'de> + 'static,
+    {
+        log::debug!("REQ: {:?}", request);
+        println!("REQ: {:?}", request);
+
+        let uri: String = request.uri().path_and_query().unwrap().as_str().into();
+
+        let res = self.client.request(request);
+        async move {
+            let res = res.await.map_err(CBError::Http)?;
+            // TODO: dont need to clone, just take "cb-after" and "cb-before"
+            let headers = res.headers().clone();
+            let body = to_bytes(res.into_body()).await.map_err(CBError::Http)?;
+            log::debug!("RES: {:#?}", body);
+            let res: Result<U, CBError> = serde_json::from_slice(&body).map_err(|e| {
+                let err = serde_json::from_slice(&body);
+                let err = err.map(CBError::Coinbase).unwrap_or_else(|_| {
+                    let data = String::from_utf8(body.to_vec()).unwrap();
+                    CBError::Serde { error: e, data }
+                });
+                err
+            });
+            // TODO: make this ".expect" play nice with the `Result` and return an error
+            // cleanup the uri 
+            res.map(|r| Paginated{
+                cb_after: headers.get("cb-after").map(|h|h.to_str().expect("cb-after header is not a valid string").into()),
+                cb_before: headers.get("cb-before").map(|h|h.to_str().expect("cb-before header is not a valid string").into()),
+                uri: uri,
+                result: r,
+            })
+        }
+    }
+
     pub(crate) fn call<U>(&self, request: Request<Body>) -> A::Result
     where
         A: Adapter<U> + 'static,
@@ -72,6 +112,15 @@ impl<A> Public<A> {
         for<'de> U: serde::Deserialize<'de>,
     {
         self.adapter.process(self.call_future(request))
+    }
+
+    pub(crate) fn call_paginated<U>(&self, request: Request<Body>) -> A::Result
+    where
+        A: Adapter<Paginated<U>> + 'static,
+        U: Send + 'static,
+        for<'de> U: serde::Deserialize<'de>,
+    {
+        self.adapter.process(self.call_future_paginated(request))
     }
 
     // This function is contructor which can control keep_alive flag of the connection.

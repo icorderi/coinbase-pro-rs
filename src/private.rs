@@ -12,6 +12,7 @@ use crate::adapters::{Adapter, AdapterNew};
 use crate::error::*;
 use crate::structs::private::*;
 use crate::structs::reqs;
+use crate::pagination::Paginated;
 use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha256;
 
@@ -370,6 +371,38 @@ impl<A> Private<A> {
 
         self.call_get(&format!("/orders{}", String::from_utf8(param).unwrap()))
     }
+    
+    /// **List Orders with pagination**
+    ///
+    /// List your current open orders. Only open or un-settled orders are returned.
+    /// As soon as an order is no longer open and settled, it will no longer appear in the default request.
+    ///
+    /// # API Key Permissions
+    /// This endpoint requires either the “view” or “trade” permission.
+    ///
+    /// # Query Parameters
+    /// | Param 	Default 	Description |
+    /// | ------ | -------- | ------------ |
+    /// | status |	*open*, *pending*, *active* | 	Limit list of orders to these statuses. Passing all returns orders of all statuses. |
+    /// | product_id |	*optional* |	Only list orders for a specific product |
+    pub fn get_orders_with_pagination(&self, status: Option<OrderStatus>, product_id: Option<&str>) -> A::Result
+    where
+        A: Adapter<Paginated<Vec<Order>>> + 'static,
+    {
+        use crate::pagination::PaginationClient;
+        
+        // TODO rewrite
+        let param_status = status.map(|x| format!("&status={}", x)).unwrap_or_default();
+        let param_product = product_id
+            .map(|x| format!("&product_id={}", x))
+            .unwrap_or_default();
+        let mut param = (param_status + &param_product).into_bytes();
+        if !param.is_empty() {
+            param[0] = b'?';
+        }
+
+        self.call_get_paginated(&format!("/orders{}", String::from_utf8(param).unwrap()))
+    }
 
     /// **Get an Order**
     ///
@@ -426,6 +459,18 @@ impl<A> Private<A> {
 
     pub fn public(&self) -> &Public<A> {
         &self._pub
+    }
+}
+
+
+impl<A> crate::pagination::PaginationClient<A> for &Private<A> {    
+    fn call_get_paginated<U>(&self, uri: &str) -> A::Result
+    where
+        A: Adapter<Paginated<U>> + 'static,
+        U: Send + 'static,
+        for<'de> U: serde::Deserialize<'de>,
+    {
+        self._pub.call_paginated(self.request(Method::GET, uri, "".into()))
     }
 }
 
@@ -645,6 +690,21 @@ mod tests {
         let client: Private<Sync> = Private::new(SANDBOX_URL, KEY, SECRET, PASSPHRASE);
         let orders = client.get_orders(None, None).unwrap();
         let str = format!("{:?}", orders);
+        println!("{}", str);
+        assert!(false);
+    }
+
+    #[test]
+    #[serial]
+    #[ignore]
+    fn test_get_orders_with_pagination() {
+        delay();
+        let client: Private<Sync> = Private::new(SANDBOX_URL, KEY, SECRET, PASSPHRASE);
+        let paginated_orders = client.get_orders_with_pagination(None, None).unwrap();
+        let str = format!("{:?}", paginated_orders);
+        println!("{}", str);
+        let more_paginated_orders = paginated_orders.next(&client).unwrap();
+        let str = format!("{:?}", paginated_orders);
         println!("{}", str);
         assert!(false);
     }
