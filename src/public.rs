@@ -75,7 +75,6 @@ impl<A> Public<A> {
         for<'de> U: serde::Deserialize<'de> + 'static,
     {
         log::debug!("REQ: {:?}", request);
-        println!("REQ: {:?}", request);
 
         let uri: String = request.uri().path_and_query().unwrap().as_str().into();
 

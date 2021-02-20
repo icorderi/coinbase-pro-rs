@@ -696,19 +696,17 @@ mod tests {
 
     #[test]
     #[serial]
-    // #[ignore]
+    #[ignore]
     fn test_get_orders_with_pagination() {
         delay();
         let client: Private<Sync> = Private::new(SANDBOX_URL, KEY, SECRET, PASSPHRASE);
         let paginated_orders = client.get_orders_with_pagination(None, None).unwrap();
         let str = format!("{:?}", paginated_orders);
         println!("{}", str);
-        let more_paginated_orders = paginated_orders.next(&client).unwrap();
+        let more_paginated_orders = paginated_orders.next(&client).unwrap().unwrap();
         let str = format!("{:?}", more_paginated_orders);
         println!("{}", str);
-        let some_more_paginated_orders = more_paginated_orders.next(&client).unwrap();
-        let str = format!("{:?}", some_more_paginated_orders);
-        println!("{}", str);
+        assert!(more_paginated_orders.next(&client).is_none());
         assert!(false);
     }
 
