@@ -19,22 +19,20 @@ pub trait PaginationClient<A> {
 
 impl<U> Paginated<U> {
     /// Returns the next page of items.
-    pub fn next<P, A>(&self, conn: P) -> A::Result
+    pub fn next<P, A>(&self, conn: P) -> Option<A::Result>
     where 
         A: Adapter<Paginated<U>> + 'static,
         P: PaginationClient<A>,
         U: Send + 'static, 
         for<'de> U: serde::Deserialize<'de>
     {
-        // TODO: the path might already include params, in which case we need to append the param, use a smarter lib for generating the uri 
-        // TODO: the path might already include de "after" param!
-        // TODO: return Option of this crap if the cb_after is done 
-        // default limit = 100
+        // There are no more pages
+        if self.cb_after.is_none() {
+            return None;
+        }
 
         // hack: uri does not seem to support parsing relative urls
         let mut uri = url::Url::parse(&format!("http://hack.com{}", self.uri)).unwrap();
-
-        println!("Magical url looks like: {}", &uri);
 
         let mut new_query = vec![];
 
@@ -61,8 +59,7 @@ impl<U> Paginated<U> {
 
         // get back a relative url with the new query 
         let fixed = format!("{}?{}", uri.path(), uri.query().unwrap());
-        println!("Fixed url: {}", &fixed);
-        conn.call_get_paginated(&fixed)
+        Some(conn.call_get_paginated(&fixed))
     }
 
     /// Returns the previous page of items.
